@@ -8,6 +8,7 @@ import (
 	"github.com/joho/godotenv"
 	"log"
 	"os"
+	"fmt"
 )
 
 func ExtractPacketInformation(packet gopacket.Packet) {
@@ -37,7 +38,8 @@ func ExtractPacketInformation(packet gopacket.Packet) {
 		switch dot11.Type {
 
 		case layers.Dot11TypeDataQOSData:
-            if dot11.Flags.ToDS() {
+
+            if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
 				clientAddr = dot11.Address2.String()
 				frame = "QoS Data Frame"
 				ssid = "Not Associated"
