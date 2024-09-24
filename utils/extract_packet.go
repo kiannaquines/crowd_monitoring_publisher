@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"log"
-	"fmt"
 	"os"
 )
 
