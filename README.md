@@ -16,7 +16,10 @@ You must already have your wifi adapter install and also must be in monitor mode
 This should be the output of the script after successfully running it
 
 `2024/09/24 20:27:01 Connected to MQTT broker`
+</br>
 `2024/09/24 20:27:01 Crowd Monitoring Publisher is starting at interface wlan1`
+
+![image](https://github.com/user-attachments/assets/f7c14adb-72c5-40a5-93f5-c518a3bce5aa)
 
 ## Any bugs? 
 Please submit a ticket if there is an issue with the publisher
