@@ -10,3 +10,6 @@ You must already have your wifi adapter install and also must be in monitor mode
 3. Fill up the necesarry fields in `.env` you just renamed
 4. Compile the go script to binary `go build -o <your_executable_name> main.go`
 5. Run the executable using `sudo ./<your_executable_name>`
+
+## Any bugs? 
+Please submit a ticket if there is an issue with the publisher
