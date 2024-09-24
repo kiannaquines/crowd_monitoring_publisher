@@ -1,6 +1,6 @@
 ## Crowd Monitoring MQTT Publisher
 
-#### Note
+### Note
 You must already have your wifi adapter install and also must be in monitor mode
 
 
