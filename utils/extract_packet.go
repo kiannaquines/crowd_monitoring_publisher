@@ -8,7 +8,6 @@ import (
 	"github.com/joho/godotenv"
 	"log"
 	"os"
-	"fmt"
 )
 
 func ExtractPacketInformation(packet gopacket.Packet) {
