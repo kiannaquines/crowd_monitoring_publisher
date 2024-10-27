@@ -3,7 +3,6 @@ package utils
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -76,16 +75,12 @@ func ExtractPacketInformation(packet gopacket.Packet) {
 			}
 
 		case layers.Dot11TypeMgmtAuthentication:
-			if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
-				clientAddr = dot11.Address1.String()
-				frame = "Authentication"
-			}
+			clientAddr = dot11.Address1.String()
+			frame = "Authentication"
 
 		case layers.Dot11TypeMgmtAssociationReq:
-			if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
-				clientAddr = dot11.Address2.String()
-				frame = "Association Request"
-			}
+			clientAddr = dot11.Address2.String()
+			frame = "Association Request"
 
 		case layers.Dot11TypeMgmtProbeReq:
 			clientAddr = dot11.Address2.String()
@@ -96,7 +91,6 @@ func ExtractPacketInformation(packet gopacket.Packet) {
 		}
 
 		if isOUIBlocked(clientAddr) {
-			fmt.Printf("Blocked %s \n", clientAddr)
 			return
 		}
 
@@ -119,7 +113,6 @@ func ExtractPacketInformation(packet gopacket.Packet) {
 					return
 				}
 
-				fmt.Printf("%s %d %s \n", clientAddr, signalStrength, frame)
 				token := mqttClient.Publish(topic, 0, false, jsonData)
 				token.Wait()
 
