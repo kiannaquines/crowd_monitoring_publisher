@@ -2,10 +2,11 @@ package utils
 
 import (
 	"crypto/tls"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/joho/godotenv"
 )
 
 var mqttClient mqtt.Client

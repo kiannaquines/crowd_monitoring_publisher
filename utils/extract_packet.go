@@ -1,14 +1,45 @@
 package utils
 
 import (
+	"bufio"
 	"encoding/json"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/uuid"
-	"github.com/joho/godotenv"
+	"fmt"
 	"log"
 	"os"
+	"strings"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/joho/godotenv"
 )
+
+var blockedOUIs map[string]struct{}
+
+func LoadBlockedOUIs(filePath string) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Fatalf("Error opening OUI file: %v", err)
+	}
+	defer file.Close()
+
+	blockedOUIs = make(map[string]struct{})
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		oui := strings.ToLower(scanner.Text())
+		blockedOUIs[oui] = struct{}{}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Error reading OUI file: %v", err)
+	}
+}
+
+func isOUIBlocked(macAddr string) bool {
+	oui := macAddr[:8]
+	_, blocked := blockedOUIs[oui]
+	return blocked
+}
 
 func ExtractPacketInformation(packet gopacket.Packet) {
 	if dot11Layer := packet.Layer(layers.LayerTypeDot11); dot11Layer != nil {
@@ -21,7 +52,6 @@ func ExtractPacketInformation(packet gopacket.Packet) {
 		var clientAddr string
 		var isRandomized bool
 		var signalStrength int
-		var ssid string
 		var frame string
 
 		timestamp := packet.Metadata().Timestamp.Format("2006-01-02 15:04:05")
@@ -34,91 +64,69 @@ func ExtractPacketInformation(packet gopacket.Packet) {
 		zone := os.Getenv("MQTT_BROKER_ZONE")
 		topic := os.Getenv("MQTT_BROKER_TOPIC")
 
+		LoadBlockedOUIs("oui.txt")
+
 		switch dot11.Type {
-
 		case layers.Dot11TypeDataQOSData:
-
-            if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
+			if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
 				clientAddr = dot11.Address2.String()
 				frame = "QoS Data Frame"
-				ssid = "Not Associated"
 			} else {
 				return
 			}
-				
-		case layers.Dot11TypeMgmtAssociationResp:
-			clientAddr = dot11.Address2.String()
-			frame = "Probe Response"
-			if probeResLayer := packet.Layer(layers.LayerTypeDot11MgmtProbeResp); probeResLayer != nil {
-				ssid = extractSSID(probeResLayer.LayerPayload())
-			}
-
-		case layers.Dot11TypeMgmtDisassociation:
-			clientAddr = dot11.Address1.String()
-			frame = "Diassociation"
-			if diAssocLayer := packet.Layer(layers.LayerTypeDot11MgmtDisassociation); diAssocLayer != nil {
-				ssid = extractSSID(diAssocLayer.LayerPayload())
-			}
 
 		case layers.Dot11TypeMgmtAuthentication:
-			clientAddr = dot11.Address1.String()
-			frame = "Authentication"
-			if authLayer := packet.Layer(layers.LayerTypeDot11MgmtAuthentication); authLayer != nil {
-				ssid = extractSSID(authLayer.LayerPayload())
-			}
-
-		case layers.Dot11TypeMgmtDeauthentication:
-			clientAddr = dot11.Address1.String()
-			frame = "Deauthentication"
-			if deAuthLayer := packet.Layer(layers.LayerTypeDot11MgmtDeauthentication); deAuthLayer != nil {
-				ssid = extractSSID(deAuthLayer.LayerPayload())
+			if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
+				clientAddr = dot11.Address1.String()
+				frame = "Authentication"
 			}
 
 		case layers.Dot11TypeMgmtAssociationReq:
-			clientAddr = dot11.Address2.String()
-			frame = "Association Request"
-			if assocReqLayer := packet.Layer(layers.LayerTypeDot11MgmtAssociationReq); assocReqLayer != nil {
-				ssid = extractSSID(assocReqLayer.LayerPayload())
+			if dot11.Flags.ToDS() && uint8(dot11.Flags) == 0x41 {
+				clientAddr = dot11.Address2.String()
+				frame = "Association Request"
 			}
 
 		case layers.Dot11TypeMgmtProbeReq:
 			clientAddr = dot11.Address2.String()
 			frame = "Probe Request"
-			if probeReqLayer := packet.Layer(layers.LayerTypeDot11MgmtProbeReq); probeReqLayer != nil {
-				ssid = extractSSID(probeReqLayer.LayerPayload())
-			}
 
 		default:
 			return
 		}
 
-		isRandomized = isMACRandomized(clientAddr)
-		signalStrength, _ = extractSignalStrength(packet)
-
-		device := AllDevice{
-			UUID:         uuid.New().String(),
-			DeviceAddr:   clientAddr,
-			IsRandomized: isRandomized,
-			DevicePower:  signalStrength,
-			SSID:         ssid,
-			Timestamp:    timestamp,
-			FrameType:    frame,
-			Zone:         zone,
-		}
-
-		jsonData, err := json.Marshal(device)
-
-		if err != nil {
+		if isOUIBlocked(clientAddr) {
+			fmt.Printf("Blocked %s \n", clientAddr)
 			return
 		}
-		
-		token := mqttClient.Publish(topic, 0, false, jsonData)
-		token.Wait()
 
-		if token.Error() != nil {
-			log.Printf("Failed to publish device data: %v\n", token.Error())
+		isRandomized = isMACRandomized(clientAddr)
+		signalStrength, isValid := extractSignalStrength(packet)
+		if isValid {
+			if signalStrength >= -80 && signalStrength <= -30 {
+				device := AllDevice{
+					DeviceAddr:   clientAddr,
+					IsRandomized: isRandomized,
+					DevicePower:  signalStrength,
+					Timestamp:    timestamp,
+					FrameType:    frame,
+					Zone:         zone,
+				}
+
+				jsonData, err := json.Marshal(device)
+
+				if err != nil {
+					return
+				}
+
+				fmt.Printf("%s %d %s \n", clientAddr, signalStrength, frame)
+				token := mqttClient.Publish(topic, 0, false, jsonData)
+				token.Wait()
+
+				if token.Error() != nil {
+					log.Printf("Failed to publish device data: %v\n", token.Error())
+				}
+			}
 		}
 	}
-
-	return
 }

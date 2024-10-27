@@ -1,7 +1,6 @@
 package utils
 
 type AllDevice struct {
-	UUID         string `json:"device_id"`
 	DeviceAddr   string `json:"device_addr"`
 	Timestamp    string `json:"timestamp"`
 	IsRandomized bool   `json:"is_randomized"`
